@@ -1,0 +1,13 @@
+---
+title: "ST558 Final Project"
+author: "Yinzhou Zhu"
+output: 
+  github_document:
+    toc: true
+---
+\newpage
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
