@@ -1,28 +1,50 @@
 library(shiny)
+library(readr)
+
+seer18_sub <- read_rds("seer18_sub.rds")
 
 # Define UI for random distribution app ----
-ui <- fluidPage(
-    
-    # App title ----
-    titlePanel("TBD"),
-    
-    # Sidebar layout with input and output definitions ----
-    sidebarLayout(
-        
-        # Sidebar panel for inputs ----
-        sidebarPanel(
-            # TODO: Data loading, importing, selection ----
-        ),
-        
-        # Main panel for displaying outputs ----
-        mainPanel(
+ui <- navbarPage("Cancer Survival",
+    tabPanel("Data summary",
+        fluidPage(
+            # App title ----
+            titlePanel("TBD"),
             
-            # Tabs ----
-            tabsetPanel(type = "tabs",
-                        # TODO: Implement different functionality separated by tabs ----
+            # Sidebar layout with input and output definitions ----
+            sidebarLayout(
+                
+                # Sidebar panel for inputs ----
+                sidebarPanel(
+                    # TODO: Data loading, importing, selection ----
+                ),
+                
+                # Main panel for displaying outputs ----
+                mainPanel(
+                    
+                   
+                )
             )
-            
         )
+    ),
+    tabPanel("Data modeling",
+             fluidPage(
+                 # App title ----
+                 titlePanel("TBD"),
+                 
+                 # Sidebar layout with input and output definitions ----
+                 sidebarLayout(
+                     
+                     # Sidebar panel for inputs ----
+                     sidebarPanel(
+                         # TODO: Data loading, importing, selection ----
+                     ),
+                     
+                     # Main panel for displaying outputs ----
+                     mainPanel(
+                        
+                     )
+                 )
+             )
     )
 )
 
