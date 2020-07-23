@@ -6,6 +6,23 @@ library(caret)
 
 seer18_sub <- read_rds("seer18_sub.rds")
 seer18_sub <- na.omit(seer18_sub)
+variables <- names(seer18_sub)[-6]
+variables <- variables[-7]
+
+# Functions
+desc_stats <- function (Var1) {
+    Minimum <- min(Var1)
+    Median <- median(Var1)
+    SD <- sd(Var1)
+    Mean <- mean(Var1)
+    Max <- max(Var1)
+    first_q <- quantile(Var1)[[2]]
+    third_q <- quantile(Var1)[[4]]
+    samples <- length(Var1)
+    sum_table <- cbind(Minimum, first_q, Median, Mean, SD, third_q, Max, samples)
+    colnames(sum_table) <- c("Min.", "1st Qu.", "Median", "Mean", "SD", "3rd Qu.", "Max.", "N")
+    return(sum_table)
+}
 
 # Define UI for random distribution app ----
 ui <- navbarPage("Cancer Survival",
@@ -13,22 +30,32 @@ ui <- navbarPage("Cancer Survival",
         fluidPage(
             # Sidebar layout with input and output definitions ----
             sidebarLayout(
-                
                 # Sidebar panel for inputs ----
                 sidebarPanel(width = 3,
-                    selectInput('data_ratio', 'Please select training/testing data ratio(%):', choices = c("90/10", "80/20", "70/30", "60/40"), selected = "80/20"),
-                    # TODO: Data loading, importing, selection ----
+                    # Select training/testing data split ratio
+                    selectInput('data_ratio', 'Training/testing data ratio(%):', choices = c("90/10", "80/20", "70/30", "60/40"), selected = "80/20"),
+                    # 
+                    selectInput('desc_table', 'Descriptive Summary Stat for:', choices = c("Full data", "Train data", "Test data"), selected = "Full data"),
+                    selectInput('selected_variable', 'Variable for plotting:', choices = variables, selected = NULL),
+                    actionButton('generate_plot', 'Plot')
                 ),
                 
                 # Main panel for displaying outputs ----
                 mainPanel(width = 9,
                     tabsetPanel(type = "tabs",
-                        tabPanel("Training Data Table",
+                        tabPanel("Data summary",
+                                 textOutput("summary_title"),
+                                 tableOutput("table_summary"),
+                                 h1("Sampled data table", style = "font-size:20px;"),
                                  dataTableOutput("train_data_table"),
                                  downloadButton("download_full_table", "Download full table"),
-                                 downloadButton("download_sampled_table", "Download sample table")
+                                 downloadButton("download_sampled_table", "Download sample table"),
+                                 tags$head(tags$style(
+                                    "#summary_title{font-size: 20px;}"))
+                                 ),
+                        tabPanel("Visualization",
+                                 plotOutput('bar_plot') %>% withSpinner(color = "#0dc5c1")
                                  )
-#                        tabPanel("Plots")
                     )
                 )
             )
@@ -38,7 +65,6 @@ ui <- navbarPage("Cancer Survival",
         fluidPage(
              # Sidebar layout with input and output definitions ----
              sidebarLayout(
-                 
                 # Sidebar panel for inputs ----
                 sidebarPanel(
                 # TODO: Data loading, importing, selection ----
@@ -52,6 +78,15 @@ ui <- navbarPage("Cancer Survival",
         )
     )
 )
+
+
+
+
+
+
+
+
+
 
 # Define server logic for random distribution app ----
 server <- function(input, output, session) {
@@ -78,6 +113,20 @@ server <- function(input, output, session) {
     test_data <- reactive({
         test_data <- seer18_sub[-train_index(), ]
     })
+    # Output 5-number statistics for survived months
+    selected_table <- reactive({
+        if (input$desc_table == "Full data") {
+            summary_table <- desc_stats(seer18_sub$Survival_months)
+        } else if (input$desc_table == "Train data") {
+            summary_table <- desc_stats(train_data()$Survival_months)
+        } else {
+            summary_table <- desc_stats(test_data()$Survival_months)
+        }
+        summary_table
+    })
+    # Output descriptive summary statistics
+    output$summary_title <- renderText(paste0("Descriptive summary statistics for ", input$desc_table))
+    output$table_summary <- renderTable(selected_table())
     # Output DT for sample training data
     sample_train_data <- reactive({
         sample_n(train_data(), 100000)
@@ -97,6 +146,15 @@ server <- function(input, output, session) {
             write.csv(sample_train_data(), file, row.names = FALSE)
         }
     )
+    # Render barplots
+    plot_data <- eventReactive(input$generate_plot, {
+        plot_vars <- train_data() %>% select(Survival_months, input$selected_variable) 
+    })
+    output$bar_plot <- renderPlot({
+        to_plot <- plot_data() %>% group_by(get(input$selected_variable)) %>% summarise(mean(Survival_months))
+        colnames(to_plot) <- c("Avg_survival_months", input$selected_variable)
+        ggplot(data = to_plot, aes(y = Avg_survival_months)) + geom_col(aes(x= get(input$selected_variable)))
+    })
 }
 
 
