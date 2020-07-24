@@ -6,8 +6,7 @@ library(caret)
 
 seer18_sub <- read_rds("seer18_sub.rds")
 seer18_sub <- na.omit(seer18_sub)
-variables <- names(seer18_sub)[-6]
-variables <- variables[-7]
+variables <- noquote(c("Year_of_diagnosis", "Age_recode_with_1_year_olds", "Laterality", "Race_recode_W_B_AI_API", "Grade"))
 
 # Functions
 desc_stats <- function (Var1) {
@@ -25,19 +24,20 @@ desc_stats <- function (Var1) {
 }
 
 # Define UI for random distribution app ----
-ui <- navbarPage("Cancer Survival",
-    tabPanel("Data summary",
-        fluidPage(
+ui <- fluidPage(
             # Sidebar layout with input and output definitions ----
             sidebarLayout(
                 # Sidebar panel for inputs ----
                 sidebarPanel(width = 3,
+                    h3("Data exploration", style = "font-size: 18px;"),
                     # Select training/testing data split ratio
                     selectInput('data_ratio', 'Training/testing data ratio(%):', choices = c("90/10", "80/20", "70/30", "60/40"), selected = "80/20"),
                     # 
                     selectInput('desc_table', 'Descriptive Summary Stat for:', choices = c("Full data", "Train data", "Test data"), selected = "Full data"),
                     selectInput('selected_variable', 'Variable for plotting:', choices = variables, selected = NULL),
-                    actionButton('generate_plot', 'Plot')
+                    checkboxInput("sex", h4("Visualize by sex", style = "color:red;font-size: 15px;"), FALSE),
+                    h3("Modeling parameters", style = "font-size: 18px;"),
+                    h3("Predictions", style = "font-size: 18px;")
                 ),
                 
                 # Main panel for displaying outputs ----
@@ -46,38 +46,24 @@ ui <- navbarPage("Cancer Survival",
                         tabPanel("Data summary",
                                  textOutput("summary_title"),
                                  tableOutput("table_summary"),
-                                 h1("Sampled data table", style = "font-size:20px;"),
+                                 h1("Sampled training data table", style = "font-size:20px;"),
                                  dataTableOutput("train_data_table"),
                                  downloadButton("download_full_table", "Download full table"),
                                  downloadButton("download_sampled_table", "Download sample table"),
-                                 tags$head(tags$style(
-                                    "#summary_title{font-size: 20px;}"))
-                                 ),
+                                 tags$head(tags$style("#summary_title{font-size: 20px;}"))),
                         tabPanel("Visualization",
-                                 plotOutput('bar_plot') %>% withSpinner(color = "#0dc5c1")
-                                 )
+                                plotOutput('bar_plot') %>% withSpinner(color = "#0dc5c1"),
+                                conditionalPanel("input.sex == 1",
+                                    plotOutput('plot_by_sex') %>% withSpinner(color = "#0dc5c1")
+                                )
+                        ),
+                        tabPanel("Modeling",
+                                
+                        )
                     )
                 )
             )
         )
-    ),
-    tabPanel("Data modeling",
-        fluidPage(
-             # Sidebar layout with input and output definitions ----
-             sidebarLayout(
-                # Sidebar panel for inputs ----
-                sidebarPanel(
-                # TODO: Data loading, importing, selection ----
-                ),
-                 
-                # Main panel for displaying outputs ----
-                mainPanel(
-                     
-                )
-            )
-        )
-    )
-)
 
 
 
@@ -91,7 +77,7 @@ ui <- navbarPage("Cancer Survival",
 # Define server logic for random distribution app ----
 server <- function(input, output, session) {
     # Data splitting into train and test sets
-    train_index <- reactive({
+    train_index <- eventReactive(input$data_ratio, {
         if (input$data_ratio == "90/10") {
             prob <- .9
         } else if (input$data_ratio == "80/20") {
@@ -114,16 +100,20 @@ server <- function(input, output, session) {
         test_data <- seer18_sub[-train_index(), ]
     })
     # Output 5-number statistics for survived months
-    selected_table <- reactive({
+    selected_data <- reactive({
         if (input$desc_table == "Full data") {
-            summary_table <- desc_stats(seer18_sub$Survival_months)
+            data <- seer18_sub
         } else if (input$desc_table == "Train data") {
-            summary_table <- desc_stats(train_data()$Survival_months)
+            data <- train_data()
         } else {
-            summary_table <- desc_stats(test_data()$Survival_months)
+            data <- test_data()
         }
-        summary_table
+        data
     })
+    selected_table <- reactive({
+        summary_table <- desc_stats(selected_data()$Survival_months)
+    })
+    
     # Output descriptive summary statistics
     output$summary_title <- renderText(paste0("Descriptive summary statistics for ", input$desc_table))
     output$table_summary <- renderTable(selected_table())
@@ -147,13 +137,34 @@ server <- function(input, output, session) {
         }
     )
     # Render barplots
-    plot_data <- eventReactive(input$generate_plot, {
-        plot_vars <- train_data() %>% select(Survival_months, input$selected_variable) 
+    bar_plot_data <- reactive({
+        if (input$sex == FALSE){
+            plot_vars <- selected_data() %>% select(Survival_months, input$selected_variable) 
+            colnames(plot_vars) <- c("Survival_months", "Variable")
+            to_plot <- plot_vars %>% group_by(Variable) %>% summarise(mean(Survival_months))
+            p1 <- ggplot(data = to_plot, aes(x = `mean(Survival_months)`)) + ylab("Months survived (Avg)") +
+                ylab(input$selected_variable) + geom_col(aes( y = Variable))
+        } else {
+            plot_vars <- selected_data() %>% select(Survival_months, input$selected_variable, Sex_no_total) 
+            colnames(plot_vars) <- c("Survival_months", "Variable", "Sex")
+            to_plot <- plot_vars %>% group_by(Variable, Sex) %>% summarise(mean(Survival_months))
+            p1 <- ggplot(data = to_plot, aes(x = `mean(Survival_months)`)) + ylab("Months survived (Avg)") +
+                ylab(input$selected_variable) + geom_col(aes( y = Variable, fill = Sex), position="dodge")
+        }
+        p1
     })
     output$bar_plot <- renderPlot({
-        to_plot <- plot_data() %>% group_by(get(input$selected_variable)) %>% summarise(mean(Survival_months))
-        colnames(to_plot) <- c("Avg_survival_months", input$selected_variable)
-        ggplot(data = to_plot, aes(y = Avg_survival_months)) + geom_col(aes(x= get(input$selected_variable)))
+        bar_plot_data()
+    })
+    box_plot_data <- reactive({
+        plot_vars <- selected_data() %>% select(Survival_months, Sex_no_total) 
+        colnames(plot_vars) <- c("Survival_months", "Sex")
+        p1 <- ggplot(data = plot_vars) + ylab("Months survived") +
+            xlab("Sex") + geom_boxplot(aes(x = Sex, y = Survival_months))
+        p1
+    })
+    output$plot_by_sex <- renderPlot({
+        box_plot_data()
     })
 }
 

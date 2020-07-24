@@ -21,7 +21,7 @@ Data set chosen for this project is the [**SEER 18**](https://seer.cancer.gov/re
 
 ## Data subsetting
 I have removed all rows with "Unknown" in `Grade` variable, since cell type is an important aspect (regardless of whether the models eventually use this variable or not).  
-In addition, only the most recent cases are used (2007-2017) due to the size of the database being really large.  
+In addition, only the most recent cases are used (2000-2010) due to the size of the database being really large. Doing this would also circumvent the issue where case is too recent and survival month data is not complete (cases where person is highly likely to succumb to cancer be currently still alive).  
 User will be able to determine the ration between training and testing data.  
 
 ## Variables used
