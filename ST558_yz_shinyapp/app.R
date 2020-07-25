@@ -32,17 +32,23 @@ ui <- fluidPage(
                     h3("Data exploration", style = "font-size: 18px;"),
                     # Select training/testing data split ratio
                     selectInput('data_ratio', 'Training/testing data ratio(%):', choices = c("90/10", "80/20", "70/30", "60/40"), selected = "80/20"),
-                    # 
+                    # Select a table to explore
                     selectInput('desc_table', 'Descriptive Summary Stat for:', choices = c("Full data", "Train data", "Test data"), selected = "Full data"),
                     selectInput('selected_variable', 'Variable for plotting:', choices = variables, selected = NULL),
                     checkboxInput("sex", h4("Visualize by sex", style = "color:red;font-size: 15px;"), FALSE),
+                    # Data modeling section
                     h3("Modeling parameters", style = "font-size: 18px;"),
+                    selectInput('trainMethod', 'Training method:', choices = c("bagTree", "randForest"), selected = "bagTree"),
+                    sliderInput('n_tree', "Adjust ntree values", min = 50, max = 500, step = 50, value = 100),
+                    uiOutput("m_try"),
+                    actionButton("train_model", "Train Model"),
+                    # Data prediction section
                     h3("Predictions", style = "font-size: 18px;")
                 ),
                 
                 # Main panel for displaying outputs ----
                 mainPanel(width = 9,
-                    tabsetPanel(type = "tabs",
+                    tabsetPanel(type = "tabs", id = "inTabset",
                         tabPanel("Data summary",
                                  textOutput("summary_title"),
                                  tableOutput("table_summary"),
@@ -53,7 +59,7 @@ ui <- fluidPage(
                                  tags$head(tags$style("#summary_title{font-size: 20px;}"))),
                         tabPanel("Visualization",
                                 plotOutput('bar_plot') %>% withSpinner(color = "#0dc5c1"),
-                                conditionalPanel("input.sex == 1",
+                                conditionalPanel(condition = "input.sex == 1",
                                     plotOutput('plot_by_sex') %>% withSpinner(color = "#0dc5c1")
                                 )
                         ),
@@ -136,7 +142,7 @@ server <- function(input, output, session) {
             write.csv(sample_train_data(), file, row.names = FALSE)
         }
     )
-    # Render barplots
+    # Render plots
     bar_plot_data <- reactive({
         if (input$sex == FALSE){
             plot_vars <- selected_data() %>% select(Survival_months, input$selected_variable) 
@@ -165,6 +171,21 @@ server <- function(input, output, session) {
     })
     output$plot_by_sex <- renderPlot({
         box_plot_data()
+    })
+    observeEvent(input$sex, {
+        updateTabsetPanel(session, "inTabset",
+                          selected = "Visualization")
+    })
+    # Modeling page
+    # Jump to modeling tab if clicked
+    observeEvent(input$train_model, {
+        updateTabsetPanel(session, "inTabset",
+                          selected = "Modeling")
+    })
+    output$m_try <- renderUI({
+        if (input$trainMethod=="randForest") {
+            sliderInput('m_try', "mtry tuning", min = 1, max = 9, step = 1, value = 3)
+        }
     })
 }
 
