@@ -11,35 +11,86 @@ output:
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```
 
-# Purpose of this project
-
-# Data used in this project
-Data is obtained by registering at The Surveillance, Epidemiology, and End Results ([NIH SEER](https://seer.cancer.gov/data/access.html)) and requesting access through SEER*Stat software. Tables are queried through the software and imported to R using `SEER2R` package.  
-
+## Packages required in the shiny app
+`shiny`  
+`tidyverse`  
+`DT`  
+`shinycssloaders`  
+`caret`  
+`mltools`  
+`data.table`  
+`parallel`  
+`doParallel`  
+`ggfortify`  
+`shinydashboard`  
+  
 ## SEER 18 data set
-Data set chosen for this project is the [**SEER 18**](https://seer.cancer.gov/registries/terms.html), which contains data for cases from year 2000 through 2017. Although this set does not include data from earlier times such as from year 1975 or 1992 onward like the **SEER 9/13** data set, improvement in modern diagnosis, treatments and post-treatment care could impact the trend of survival. Thus, the **SEER 18** data set can be more appropriate for traditional ML predictions.  
+Data set chosen for this project is the [**SEER 18**](https://seer.cancer.gov/registries/terms.html),  
 
-## Data subsetting
-I have removed all rows with "Unknown" in `Grade` variable, since cell type is an important aspect (regardless of whether the models eventually use this variable or not).  
-In addition, only the most recent cases are used (2000-2010) due to the size of the database being really large. Doing this would also circumvent the issue where case is too recent and survival month data is not complete (cases where person is highly likely to succumb to cancer be currently still alive).  
-User will be able to determine the ration between training and testing data.  
+  * "Available for cases diagnosed from 2000 through the current data year and includes expanded races."  
+  * The data is downloaded in matrix format through SEER*Stat software, and then imported into R using `SEER2R` package.  
 
-## Variables used
+### Variables used
 The Following variables are used from the data set:  
 ```{r variable table, echo=FALSE, results='asis'}
 manual_table <- "
 | Variables                        | Descriptions                                                                     |
 |----------------------------------|:--------------------------------------------------------------------------------:|
-| Sex                              | Includes 1= Male and 2=Female                                                    |
+| Sex                              | Includes Male and Female                                                         |
 | Year of diagnosis                | Values are 2000-2019                                                             |
 | Race Recode (W, B, AI, API)      | White,Black,American Indian/Alaska Native,Asian or Pacific Islander,Unknown      |
 | Age Recode with <1 year olds     | Age of diagnosis:< 1 year, 1-4 years,..., 85+ years                              |
-| Primary Site                     | Cecum, Lips etc. but with a code                                                 |
-| Histological Type                | Microscopic composition of cells and/or tissue for primary tumor (code)          |
+| Primary Site                     | Cecum, Lips etc. but with a numeric code                                         |
+| Histological Type                | Microscopic composition of cells and/or tissue for primary tumor (numeric code)  |
 | Grade                            | Cell type identified                                                             |
 | Laterality                       | The side of body/a paired organ on which the reportable tumor originated         |
-| RX SUMM SURG PRIM SITE (1998+)   | Surgery of Primary Site                                                          |
+| RX SUMM SURG PRIM SITE (1998+)   | Surgery of Primary Site (numeric code)                                           |
 | Survival months                  | Number of months survived                                                        |
 "
 cat(manual_table) 
 ```
+
+### Data pre-processing
+  * The downloaded data is pre-filtered to have data year 2000-2010.  
+  * In variable `Grade`, all rows with "Unknown" are removed since cell type is an important aspect (regardless of whether the models eventually use this variable or not).  
+  * The 19 age groups are recoded into:  
+```{r age groups, echo=FALSE, results='asis'}
+manual_table <- "
+| original        | recoded (numeric)   |
+|-----------------|:-------------------:|
+| 00 years        | 1                   |
+| 01-04 years     | 2                   |
+| 05-09 years     | 3                   |
+| 10-14 years     | 4                   |
+| 15-19 years     | 5                   |
+| 20-24 years     | 6                   |
+| 25-29 years     | 7                   |
+| 30-34 years     | 8                   |
+| ......          | ......              |
+| 85 years        | 19                  |
+"
+cat(manual_table) 
+```
+  
+  * Data is saved in `.rds` format and uploaded to github inside shinyapp directory.  
+
+## Shiny app
+
+### Variables for visualization
+  * Variables including `Primary Site`, `Histological Type` and `RX SUMM SURG PRIM SITE (1998+)` are not visualized in the but are are included for modeling (supervised).  
+  * Data is segregated by Year_of_diagnosis for all visualization and modeling.  
+
+### Variable encoding in shiny app
+  * All categorical variables are encoded with one-hot encoding with `one_hot()` function from `mltools` in the back end so that those variables can be used as predictors.  
+
+### Data processing in the back-end
+
+#### Summary, visualization and supervised modeling
+  * When a year is selected, that years data is subsetted. The subset is further sampled (randomly using `sample_n()`) to select 50000 rows.  
+  * The data table in summary section contains that 50000 records.  
+  * The 50000 records are further split into training and testing data sets with a 70% to 30% ratio.  
+  * Model training is based on the training set, and prediction is based on test set, which allows user to choose.  
+  
+#### Unsupervised modeling
+  * Data is sampled 50000 times from the original data (input rds), which contains all 10 years data. 
+  * The sampled data is modeled against `Survival_months`, `age_group`, `Sex`, `Primary Site`, `Histological Type` and `RX SUMM SURG PRIM SITE (1998+)`. 
