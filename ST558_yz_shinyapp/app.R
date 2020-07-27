@@ -74,7 +74,8 @@ ui <- fluidPage(
                                        plotOutput('bar_plot') %>% withSpinner(color = "#0dc5c1"),
                                        downloadButton("download_plot1", "Download plot"),
                                        conditionalPanel(condition = "input.sex == 1",
-                                                        plotOutput('plot_by_sex') %>% withSpinner(color = "#0dc5c1"),
+                                                        plotOutput('plot_by_sex', hover = "box_plot_click") %>% withSpinner(color = "#0dc5c1"),
+                                                        verbatimTextOutput("selected_rows"),
                                                         downloadButton("download_plot2", "Download plot")
                                        )
                               ),
@@ -152,49 +153,61 @@ server <- function(input, output, session) {
             colnames(plot_vars) <- c("Survival_months", "Variable")
             to_plot <- plot_vars %>% group_by(Variable) %>% summarise(mean(Survival_months))
             to_plot$Variable <- as.factor(to_plot$Variable)
-            p1 <- ggplot(data = to_plot, aes(x = `mean(Survival_months)`)) + ylab("Months survived (Avg)") +
-                ylab(input$selected_variable) + geom_col(aes( y = Variable))
         } else {
             plot_vars <- year_data() %>% select(Survival_months, input$selected_variable, Sex_no_total) 
             colnames(plot_vars) <- c("Survival_months", "Variable", "Sex")
             to_plot <- plot_vars %>% group_by(Variable, Sex) %>% summarise(mean(Survival_months))
             to_plot$Variable <- as.factor(to_plot$Variable)
-            p1 <- ggplot(data = to_plot, aes(x = `mean(Survival_months)`)) + ylab("Months survived (Avg)") +
-                ylab(input$selected_variable) + geom_col(aes( y = Variable, fill = Sex), position="dodge")
         }
-        p1
+        to_plot
+    })
+    bar_plot_out <- reactive({
+        if (input$sex == FALSE){
+            ggplot(data = bar_plot_data(), aes(x = `mean(Survival_months)`)) + ylab("Months survived (Avg)") + ylab(input$selected_variable) + geom_col(aes( y = Variable)) 
+        } else {
+            ggplot(data = bar_plot_data(), aes(x = `mean(Survival_months)`)) + ylab("Months survived (Avg)") + ylab(input$selected_variable) + geom_col(aes( y = Variable, fill = Sex), position="dodge")
+        }
     })
     output$bar_plot <- renderPlot({
-        bar_plot_data()
+        bar_plot_out()
     })
+    # Interactive bar plot
     box_plot_data <- reactive({
         plot_vars <- year_data() %>% select(Survival_months, Sex_no_total) 
         colnames(plot_vars) <- c("Survival_months", "Sex")
-        p1 <- ggplot(data = plot_vars) + ylab("Months survived") +
-            xlab("Sex") + geom_boxplot(aes(x = Sex, y = Survival_months))
-        p1
+        plot_vars
     })
-    
+    box_plot <- reactive({
+        p1<-plot(as.factor(box_plot_data()$Sex), box_plot_data()$Survival_months)
+    })
+    output$selected_rows <- renderPrint({
+        if (is.null(input$box_plot_click$x)) return()
+        else {
+            keeprows <- round(input$box_plot_click$x) == as.numeric(as.factor(box_plot_data()$Sex))
+            desc_stats(box_plot_data()[keeprows, ]$Survival_months)
+        }
+    })
     output$download_plot1 <- downloadHandler(
         filename = 'by_variable.png',
         content = function(file) {
             device <- function(..., width, height) {
                 grDevices::png(..., width = width, height = height, res = 300, units = "in")
             }
-            ggsave(file, plot = bar_plot_data(), device = device)
+            ggsave(file, plot = bar_plot_out(), device = device)
         }
     )
     output$plot_by_sex <- renderPlot({
-        box_plot_data()
+        box_plot()
     })
+   
     output$download_plot2 <- downloadHandler(
-        filename = 'by_variable.png',
+        filename = 'by_sex.png',
         content = function(file) {
-            device <- function(..., width, height) {
-                grDevices::png(..., width = width, height = height, res = 300, units = "in")
-            }
-            ggsave(file, plot = box_plot_data(), device = device)
-        }
+            png(file=file)
+            box_plot()
+            dev.off()
+        },
+        contentType = 'image/png'
     )
     observeEvent(input$sex, {
         updateTabsetPanel(session, "inTabset",
