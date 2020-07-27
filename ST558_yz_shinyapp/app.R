@@ -8,6 +8,7 @@ library(mltools)
 library(data.table)
 library(parallel)
 library(doParallel)
+library(ggfortify)
 
 seer18_sub <- read_rds("seer18_sub.rds")
 seer18_sub <- na.omit(seer18_sub)
@@ -45,15 +46,15 @@ ui <- fluidPage(
                      selectInput('selected_variable', 'Variable for plotting:', choices = variables, selected = NULL),
                      checkboxInput("sex", h4("Visualize by sex", style = "color:red;font-size: 15px;"), FALSE),
                      # Data modeling section supervised
-                     h3("Modeling parameters (Supervised)", style = "font-size: 18px;"),
+                     h3("Modeling parameters", style = "font-size: 18px;"),
                      selectInput('trainMethod', 'Training method:', choices = c("mlr", "bagTree"), selected = "mlr"),
                      uiOutput("n_tree_slider"),
                      uiOutput("cv_fold_slider"),
                      uiOutput("cv_repeat_slider"),
                      actionButton("train_model_sup", "Train Model"),
                      # Data modeling section unsupervised
-                     h3("Modeling parameters (Unsupervised)", style = "font-size: 18px;"),
-                     actionButton("train_model_unsup", "Train Model")
+                     h3("   "),
+                     actionButton("train_model_unsup", "PCA")
         ),
         
         # Main panel for displaying outputs ----
@@ -85,7 +86,9 @@ ui <- fluidPage(
                                       downloadButton("download_test_table", "Download test data")
                               ),
                               tabPanel("Modeling(Unsupervised)",
-                                       
+                                       verbatimTextOutput("pca_result") %>% withSpinner(color = "#0dc5c1"),
+                                       plotOutput('pca_plot') %>% withSpinner(color = "#0dc5c1"),
+                                       plotOutput('pc_plot') %>% withSpinner(color = "#0dc5c1")
                               )
                   )
         )
@@ -197,6 +200,10 @@ server <- function(input, output, session) {
         updateTabsetPanel(session, "inTabset",
                           selected = "Visualization")
     })
+    observeEvent(input$selected_variable, {
+        updateTabsetPanel(session, "inTabset",
+                          selected = "Visualization")
+    })
     # Modeling pages
     # Jump to modeling tab if clicked
     observeEvent(input$train_model_sup, {
@@ -289,7 +296,32 @@ server <- function(input, output, session) {
             }
         })
     })
-
+    # Unsupervised learning
+    pca_data <- reactive({
+        my_data <- sample_n(seer18_sub, 50000)
+        my_data <- my_data %>% select(Survival_months, Histologic_Type_ICDO3, Primary_Site, RX_SummSurg_Prim_Site_1998, age_group, Sex_no_total)
+        my_data$Sex_no_total <- as.factor(my_data$Sex_no_total)
+        my_data
+    })
+    pca_out <- eventReactive(input$train_model_unsup, {
+        prcomp(select(pca_data(), !Sex_no_total), center = TRUE, scale. = TRUE)
+    })
+    observeEvent(input$train_model_unsup,{
+        output$pca_result <- renderPrint(
+            summary(pca_out())
+        )
+    })
+    observeEvent(input$train_model_unsup,{
+        output$pca_plot <- renderPlot(
+            plot(cumsum(pca_out()$sdev^2/sum(pca_out()$sdev^2)), xlab = "PCs", ylab = "Cumulative Proportion of Variance Explained", ylim=c(0,1), type='b')
+        )
+    })
+    observeEvent(input$train_model_unsup,{
+        output$pc_plot <- renderPlot(
+            autoplot(pca_out(), data = pca_data(), colour = 'Sex_no_total', loadings = TRUE, loadings.colour = 'black',
+                     loadings.label = TRUE, loadings.label.size = 4)
+        )
+    })
 }
 
 
