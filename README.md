@@ -58,6 +58,9 @@ The Following variables are used from the data set:
 ### Data pre-processing
 
   - The downloaded data is pre-filtered to have data year 2000-2010.  
+  - In variable `Grade`, all rows with “Unknown” are removed since cell
+    type is an important aspect (regardless of whether the models
+    eventually use this variable or not).  
   - The 19 age groups are recoded into:
 
 | original    | recoded (numeric) |
