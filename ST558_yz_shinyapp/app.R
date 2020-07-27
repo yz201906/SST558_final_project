@@ -45,11 +45,11 @@ encode_data <- function (df) {
     recoded <- one_hot(data.table(df))
 }
 
-# Define UI for random distribution app ----
+# Define dashboard UI ----
 ui <- dashboardPage(
     dashboardHeader(title = "Simple exploration, modeling and prediction using the NIH cancer case data sets",
                     titleWidth = 800),
-    # Sidebar panel for inputs ----
+    # Sidebar ----
     dashboardSidebar(
         #width = 3,
         h3("Data exploration", style = "font-size: 18px;"),
@@ -88,9 +88,8 @@ ui <- dashboardPage(
         actionButton("train_model_unsup", "PCA")
     ),
     
-    # Main panel for displaying outputs ----
+    # Main dashboard for displaying outputs ----
     dashboardBody(
-        #width = 9,
         tabsetPanel(
             type = "tabs",
             id = "inTabset",
@@ -239,16 +238,19 @@ server <- function(input, output, session) {
     })
     bar_plot_out <- reactive({
         if (input$sex == FALSE) {
-            ggplot(data = bar_plot_data(), aes(x = `mean(Survival_months)`)) + ylab("Months survived (Avg)") + ylab(input$selected_variable) + geom_col(aes(y = Variable))  + theme(
+            ggplot(data = bar_plot_data(), aes(x = `mean(Survival_months)`)) + 
+                ylab("Months survived (Avg)") + ylab(input$selected_variable) + 
+                geom_col(aes(y = Variable))  + theme(
                 panel.background = element_rect(fill = 'transparent', color = 'black'),
                 panel.grid = element_blank()
             )
         } else {
-            ggplot(data = bar_plot_data(), aes(x = `mean(Survival_months)`)) + ylab("Months survived (Avg)") + ylab(input$selected_variable) + geom_col(aes(y = Variable, fill = Sex), position =
-                                                                                                                                                            "dodge") + theme(
-                                                                                                                                                                panel.background = element_rect(fill = 'transparent', color = 'black'),
-                                                                                                                                                                panel.grid = element_blank()
-                                                                                                                                                            )
+            ggplot(data = bar_plot_data(), aes(x = `mean(Survival_months)`)) + 
+                ylab("Months survived (Avg)") + ylab(input$selected_variable) + 
+                geom_col(aes(y = Variable, fill = Sex), position = "dodge") + theme(
+                panel.background = element_rect(fill = 'transparent', color = 'black'),
+                panel.grid = element_blank()
+            )
         }
     })
     output$hist_plot <- renderPlot({
@@ -511,8 +513,7 @@ server <- function(input, output, session) {
                 loadings = TRUE,
                 loadings.colour = 'black',
                 loadings.label = TRUE,
-                loadings.label.size = 4
-            )  + theme(
+                loadings.label.size = 4) + theme(
                 panel.background = element_rect(fill = 'transparent', color = 'black'),
                 panel.grid = element_blank()
             )
